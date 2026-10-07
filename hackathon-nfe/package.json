@@ -1,12 +1,15 @@
 {
   "name": "hackathon-nfe",
   "version": "1.0.0",
-  "description": "",
+  "description": "NF-e payment collection on Solana with automatic reconciliation and on-chain document hash",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "saldo": "tsx saldo.ts",
+    "cobranca": "tsx cobranca.ts",
+    "pagar": "tsx pagar.ts",
+    "monitorar": "tsx monitorar.ts"
   },
-  "keywords": [],
+  "keywords": ["solana", "solana-pay", "nfe"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
