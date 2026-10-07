@@ -1,7 +1,7 @@
 import { PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { carregarOuCriar, conexao } from "./carteira";
 
-const DESTINO = new PublicKey("COLE_AQUI_O_ENDERECO_DA_PHANTOM");
+const DESTINO = new PublicKey("6en4Aeq8wVwJbTpvhhNBPdLzSXd2cQHd2axyWerc7abb");
 
 async function main() {
   const origem = carregarOuCriar();
