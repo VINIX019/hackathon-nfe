@@ -7,6 +7,9 @@ import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO } from "./config";
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const lerLista = () =>
+  fs.existsSync(ARQUIVO_COBRANCAS) ? JSON.parse(fs.readFileSync(ARQUIVO_COBRANCAS, "utf8")) : [];
+
 async function verificar(c: any): Promise<boolean> {
   const reference = new PublicKey(c.reference);
   try {
@@ -20,7 +23,7 @@ async function verificar(c: any): Promise<boolean> {
     c.status = "paga";
     c.assinatura = signature;
     c.paga_em = new Date().toISOString();
-    console.log(`BAIXA: nota ${c.arquivo} paga. https://explorer.solana.com/tx/${signature}?cluster=devnet`);
+    console.log(`BAIXA: nota ${c.chave ?? c.arquivo} paga. https://explorer.solana.com/tx/${signature}?cluster=devnet`);
     return true;
   } catch (e: any) {
     if (e.name === "FindReferenceError") return false; // ainda não pagou
@@ -38,13 +41,20 @@ async function verificar(c: any): Promise<boolean> {
 async function main() {
   console.log("Monitorando cobranças pendentes... (memo:", VALIDAR_MEMO ? "validado" : "ignorado", ")");
   while (true) {
-    if (fs.existsSync(ARQUIVO_COBRANCAS)) {
-      const lista = JSON.parse(fs.readFileSync(ARQUIVO_COBRANCAS, "utf8"));
-      let mudou = false;
-      for (const c of lista.filter((x: any) => x.status === "pendente")) {
-        if (await verificar(c)) mudou = true;
+    const alteradas: any[] = [];
+    for (const c of lerLista().filter((x: any) => x.status === "pendente")) {
+      if (await verificar(c)) alteradas.push(c);
+    }
+
+    if (alteradas.length) {
+      // Relê o arquivo antes de gravar: cobranças criadas enquanto
+      // consultávamos a rede não podem ser perdidas.
+      const atual = lerLista();
+      for (const c of alteradas) {
+        const i = atual.findIndex((x: any) => x.reference === c.reference);
+        if (i >= 0) atual[i] = c;
       }
-      if (mudou) fs.writeFileSync(ARQUIVO_COBRANCAS, JSON.stringify(lista, null, 2));
+      fs.writeFileSync(ARQUIVO_COBRANCAS, JSON.stringify(atual, null, 2));
     }
     await espera(3000);
   }
