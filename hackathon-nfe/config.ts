@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
-export const RECEBEDOR = new PublicKey("");
+export const RECEBEDOR = new PublicKey("6en4Aeq8wVwJbTpvhhNBPdLzSXd2cQHd2axyWerc7abb");
 export const ARQUIVO_COBRANCAS = "cobrancas.json";
 export const MEMO_PROGRAM = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
