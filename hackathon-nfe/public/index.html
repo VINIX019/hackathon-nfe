@@ -1,1 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NF-e Pay</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --line: #2a2f3a; --text: #e8eaf0; --muted: #8b93a7;
+    --accent: #9945ff; --accent2: #14f195; --warn: #f5b942; --bad: #ff5c6c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 22px; }
+  header h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; color: transparent; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  .net { margin-left: auto; font-size: 12px; color: var(--accent2); border: 1px solid var(--accent2); border-radius: 99px; padding: 2px 10px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 20px; grid-template-columns: 1fr 1fr; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  section.full { grid-column: 1 / -1; }
+  h2 { margin: 0 0 4px; font-size: 16px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted); cursor: pointer; transition: .15s; }
+  .drop:hover, .drop.over { border-color: var(--accent); color: var(--text); }
+  .drop input { display: none; }
+  .msg { margin-top: 12px; font-size: 14px; }
+  .erro { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .badge { font-size: 12px; padding: 3px 10px; border-radius: 99px; font-weight: 600; }
+  .pendente { background: #f5b94222; color: var(--warn); }
+  .paga { background: #14f19522; color: var(--accent2); }
+  .invalida { background: #ff5c6c22; color: var(--bad); }
+  button, a.btn { background: transparent; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 13px; cursor: pointer; text-decoration: none; }
+  button:hover, a.btn:hover { border-color: var(--accent); }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
+  .qrbox { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+  .qrbox img { width: 180px; height: 180px; border-radius: 8px; background: #fff; }
+  .result { margin-top: 14px; padding: 14px; border-radius: 10px; border: 1px solid var(--line); }
+  .result.autentico { border-color: var(--accent2); background: #14f19511; }
+  .result.alterado, .result.divergente { border-color: var(--bad); background: #ff5c6c11; }
+  .result.nao_paga, .result.desconhecido { border-color: var(--warn); background: #f5b94211; }
+  .result strong { font-size: 16px; display: block; margin-bottom: 6px; }
+  .empty { color: var(--muted); text-align: center; padding: 20px; }
+  dialog { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 20px; text-align: center; }
+  dialog img { width: 300px; height: 300px; background: #fff; border-radius: 8px; }
+  dialog::backdrop { background: #000a; }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>NF-e Pay</span></h1>
+  <p>Invoice payments on Solana with automatic reconciliation and on-chain proof</p>
+  <div class="net">devnet</div>
+</header>
 
+<main>
+  <section>
+    <h2>1. New charge</h2>
+    <p class="sub">Upload the NF-e XML. Amount and access key are read from the invoice.</p>
+    <label class="drop" id="dropCobranca">
+      <input type="file" accept=".xml" id="fileCobranca">
+      Drop the XML here or click to choose
+    </label>
+    <div id="novaCobranca" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>2. Verify document</h2>
+    <p class="sub">Upload an XML to check it against the hash recorded on-chain with the payment.</p>
+    <label class="drop" id="dropVerificar">
+      <input type="file" accept=".xml" id="fileVerificar">
+      Drop the XML here or click to choose
+    </label>
+    <div id="verificacao" class="msg"></div>
+  </section>
+
+  <section class="full">
+    <h2>Charges</h2>
+    <p class="sub">Status updates automatically when the payment lands on-chain.</p>
+    <table>
+      <thead><tr>
+        <th>Invoice #</th><th>Amount</th><th>Status</th><th class="hide-sm">Created</th><th></th>
+      </tr></thead>
+      <tbody id="lista"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </section>
+</main>
+
+<dialog id="dlgQr">
+  <h2 id="dlgTitulo">Scan with Phantom</h2>
+  <img id="dlgImg" alt="Solana Pay QR code">
+  <p class="sub">Solana Pay · devnet</p>
+  <button onclick="dlgQr.close()">Close</button>
+</dialog>
+
+<script>
+const numeroNota = (chave) => chave ? String(Number(chave.slice(25, 34))) : "—";
+const dataHora = (iso) => iso ? new Date(iso).toLocaleString() : "";
+const STATUS = { pendente: "pending", paga: "paid", invalida: "invalid" };
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function enviarXml(url, arquivo) {
+  const resp = await fetch(url + "?nome=" + encodeURIComponent(arquivo.name), {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: await arquivo.arrayBuffer(), // bytes exatos, para o hash bater
+  });
+  const dados = await resp.json();
+  if (!resp.ok) throw new Error(dados.erro || "Error");
+  return dados;
+}
+
+function ligarUpload(dropId, inputId, acao) {
+  const drop = document.getElementById(dropId);
+  const input = document.getElementById(inputId);
+  input.addEventListener("change", () => { if (input.files[0]) acao(input.files[0]); input.value = ""; });
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.classList.remove("over");
+    if (e.dataTransfer.files[0]) acao(e.dataTransfer.files[0]);
+  });
+}
+
+ligarUpload("dropCobranca", "fileCobranca", async (arquivo) => {
+  const alvo = document.getElementById("novaCobranca");
+  alvo.innerHTML = "Creating charge…";
+  try {
+    const c = await enviarXml("/api/cobrancas", arquivo);
+    alvo.innerHTML = `
+      <div class="qrbox">
+        <img src="${c.qr}" alt="QR">
+        <div>
+          <div><b>Invoice ${numeroNota(c.chave)}</b> · ${esc(c.valor)} SOL</div>
+          <div class="sub" style="margin-top:6px">Scan with Phantom (devnet) or run <code>npm run pagar</code>.</div>
+          <div class="mono">hash ${esc(c.hash)}</div>
+        </div>
+      </div>`;
+    carregar();
+  } catch (e) {
+    alvo.innerHTML = `<span class="erro">${esc(e.message)}</span>`;
+  }
+});
+
+ligarUpload("dropVerificar", "fileVerificar", async (arquivo) => {
+  const alvo = document.getElementById("verificacao");
+  alvo.innerHTML = "Checking on-chain…";
+  try {
+    const r = await enviarXml("/api/verificar", arquivo);
+    const icone = { autentico: "✅", alterado: "❌", divergente: "❌", nao_paga: "⏳", desconhecido: "❔" }[r.resultado];
+    let extra = `<div class="mono">file hash ${esc(r.hash)}</div>`;
+    if (r.hashOriginal) extra += `<div class="mono">original hash ${esc(r.hashOriginal)}</div>`;
+    if (r.memoNaBlockchain) extra += `<div class="mono">on-chain memo ${esc(r.memoNaBlockchain)}</div>`;
+    if (r.explorer) extra += `<div style="margin-top:8px">Paid ${esc(dataHora(r.paga_em))} · <a class="btn" href="${r.explorer}" target="_blank">View transaction ↗</a></div>`;
+    alvo.innerHTML = `<div class="result ${r.resultado}"><strong>${icone} ${esc(r.mensagem)}</strong>${extra}</div>`;
+  } catch (e) {
+    alvo.innerHTML = `<span class="erro">${esc(e.message)}</span>`;
+  }
+});
+
+async function mostrarQr(reference, chave) {
+  const r = await (await fetch(`/api/cobrancas/${reference}/qr`)).json();
+  document.getElementById("dlgImg").src = r.qr;
+  document.getElementById("dlgTitulo").textContent = `Invoice ${numeroNota(chave)}`;
+  document.getElementById("dlgQr").showModal();
+}
+
+async function carregar() {
+  const lista = await (await fetch("/api/cobrancas")).json();
+  const corpo = document.getElementById("lista");
+  if (!lista.length) { corpo.innerHTML = `<tr><td colspan="5" class="empty">No charges yet.</td></tr>`; return; }
+  corpo.innerHTML = lista.map((c) => {
+    let acao = "";
+    if (c.status === "pendente") acao = `<button onclick="mostrarQr('${c.reference}','${c.chave}')">Show QR</button>`;
+    if (c.status === "paga") acao = `<a class="btn" target="_blank" href="https://explorer.solana.com/tx/${c.assinatura}?cluster=devnet">Explorer ↗</a>`;
+    if (c.status === "invalida") acao = `<span class="mono" title="${esc(c.motivo)}">see reason</span>`;
+    return `<tr>
+      <td><b>${numeroNota(c.chave)}</b><div class="mono hide-sm">${esc(c.chave)}</div></td>
+      <td>${esc(c.valor)} SOL</td>
+      <td><span class="badge ${c.status}">${STATUS[c.status] || c.status}</span></td>
+      <td class="hide-sm">${dataHora(c.criada)}</td>
+      <td>${acao}</td>
+    </tr>`;
+  }).join("");
+}
+
+carregar();
+setInterval(carregar, 3000);
+</script>
+</body>
+</html>
