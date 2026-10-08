@@ -4,7 +4,6 @@ import express from "express";
 import QRCode from "qrcode";
 import * as path from "path";
 import { lerLista, criarCobranca, rodadaMonitor, verificarDocumento } from "./nucleo";
-import { COTACAO_BRL_POR_SOL } from "./config";
 
 const app = express();
 const PORTA = Number(process.env.PORT) || 3000;
@@ -13,10 +12,6 @@ const PORTA = Number(process.env.PORT) || 3000;
 const corpoXml = express.raw({ type: "*/*", limit: "5mb" });
 
 app.use(express.static(path.join(__dirname, "public")));
-
-app.get("/api/config", (_req, res) => {
-  res.json({ rede: "devnet", cotacao: COTACAO_BRL_POR_SOL.toString() });
-});
 
 app.get("/api/cobrancas", (_req, res) => {
   res.json(lerLista().slice().reverse()); // mais recentes primeiro

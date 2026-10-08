@@ -5,7 +5,12 @@ import BigNumber from "bignumber.js";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import { conexao } from "./carteira";
-import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO, COTACAO_BRL_POR_SOL, brlParaSol } from "./config";
+import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO, MOEDA, USDC_MINT, USDC_DECIMAIS } from "./config";
+
+// Cobranças antigas (sem campo "moeda") eram em SOL
+export const moedaDe = (c: any): "USDC" | "SOL" => (c.moeda === "USDC" ? "USDC" : "SOL");
+// Para o Solana Pay: USDC é um token SPL (splToken); SOL é nativo (sem splToken)
+export const splTokenDe = (c: any) => (moedaDe(c) === "USDC" ? USDC_MINT : undefined);
 
 export const lerLista = (): any[] =>
   fs.existsSync(ARQUIVO_COBRANCAS) ? JSON.parse(fs.readFileSync(ARQUIVO_COBRANCAS, "utf8")) : [];
@@ -24,7 +29,7 @@ export function lerNota(texto: string) {
 }
 
 // Mesma regra do cobranca.ts, mas recebendo o conteúdo do XML em vez do caminho
-export function criarCobranca(xml: Buffer, nomeArquivo: string) {
+export function criarCobranca(xml: Buffer, nomeArquivo: string, valorManual?: string) {
   const { chave, vNF } = lerNota(xml.toString("utf8"));
   const hash = hashDe(xml);
   const lista = lerLista();
@@ -32,16 +37,16 @@ export function criarCobranca(xml: Buffer, nomeArquivo: string) {
   const existente = lista.find((x) => x.chave === chave && x.status !== "invalida");
   if (existente) throw new Error(`Já existe cobrança para esta nota (status: ${existente.status}).`);
 
-  // O <vNF> é em reais; a cobrança é em SOL pela cotação configurada.
-  const valorBRL = new BigNumber(vNF);
-  if (!valorBRL.isFinite() || valorBRL.lte(0)) throw new Error("Valor inválido: " + vNF);
-  const valor = brlParaSol(valorBRL);
-  if (valor.lte(0)) throw new Error("Valor muito pequeno para converter: R$ " + vNF);
+  const valor = new BigNumber(valorManual ?? vNF);
+  if (!valor.isFinite() || valor.lte(0)) throw new Error("Valor inválido: " + (valorManual ?? vNF));
+  const casas = MOEDA === "USDC" ? USDC_DECIMAIS : 9;
+  if ((valor.decimalPlaces() ?? 0) > casas) throw new Error(`Valor com mais de ${casas} casas decimais: ${valor}`);
 
   const reference = Keypair.generate().publicKey;
   const url = encodeURL({
     recipient: RECEBEDOR,
     amount: valor,
+    splToken: MOEDA === "USDC" ? USDC_MINT : undefined,
     reference,
     label: `NF-e ${chave.slice(25, 34)}`,
     message: "Pagamento de nota fiscal",
@@ -51,9 +56,8 @@ export function criarCobranca(xml: Buffer, nomeArquivo: string) {
   const cobranca = {
     reference: reference.toBase58(),
     chave,
-    valor: valor.toString(), // em SOL
-    valorBRL: valorBRL.toString(),
-    cotacao: COTACAO_BRL_POR_SOL.toString(), // R$ por 1 SOL, no momento da cobrança
+    valor: valor.toString(),
+    moeda: MOEDA,
     hash,
     arquivo: nomeArquivo,
     url: url.toString(),
@@ -71,13 +75,15 @@ async function verificarPagamento(c: any): Promise<boolean> {
   try {
     const { signature } = await findReference(conexao, reference, { finality: "confirmed" });
     const esperado: any = { recipient: RECEBEDOR, amount: new BigNumber(c.valor), reference };
+    const splToken = splTokenDe(c);
+    if (splToken) esperado.splToken = splToken;
     if (VALIDAR_MEMO) esperado.memo = c.hash;
     await validateTransfer(conexao, signature, esperado, { commitment: "confirmed" });
 
     c.status = "paga";
     c.assinatura = signature;
     c.paga_em = new Date().toISOString();
-    console.log(`BAIXA: nota ${c.chave} paga. https://explorer.solana.com/tx/${signature}?cluster=devnet`);
+    console.log(`BAIXA: nota ${c.chave} paga (${c.valor} ${moedaDe(c)}). https://explorer.solana.com/tx/${signature}?cluster=devnet`);
     return true;
   } catch (e: any) {
     if (e.name === "FindReferenceError") return false;
@@ -167,7 +173,7 @@ export async function verificarDocumento(xml: Buffer) {
     memoNaBlockchain: memo,
     chave: pelaHash.chave,
     valor: pelaHash.valor,
-    valorBRL: pelaHash.valorBRL,
+    moeda: moedaDe(pelaHash),
     paga_em: pelaHash.paga_em,
     assinatura: pelaHash.assinatura,
     explorer: `https://explorer.solana.com/tx/${pelaHash.assinatura}?cluster=devnet`,

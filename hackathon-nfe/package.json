@@ -10,12 +10,18 @@
     "pagar": "tsx pagar.ts",
     "monitorar": "tsx monitorar.ts"
   },
-  "keywords": ["solana", "solana-pay", "nfe"],
+  "keywords": [
+    "solana",
+    "solana-pay",
+    "nfe"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "@solana/pay": "^0.2.6",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.99.0",
     "bignumber.js": "^9.3.1",
     "express": "^5.1.0",
