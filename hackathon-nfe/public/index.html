@@ -56,7 +56,7 @@
 <header>
   <h1><span>NF-e Pay</span></h1>
   <p>Invoice payments on Solana with automatic reconciliation and on-chain proof</p>
-  <div class="net">devnet</div>
+  <div class="net" id="rede">devnet</div>
 </header>
 
 <main>
@@ -103,7 +103,21 @@
 const numeroNota = (chave) => chave ? String(Number(chave.slice(25, 34))) : "—";
 const dataHora = (iso) => iso ? new Date(iso).toLocaleString() : "";
 const STATUS = { pendente: "pending", paga: "paid", invalida: "invalid" };
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const reais = (v) => Number(v).toLocaleString("en-US", { style: "currency", currency: "BRL" });
+// "R$1,250.00 · 1.5625 SOL" (cobranças antigas, sem valorBRL, mostram só SOL)
+const valorTexto = (c) => (c.valorBRL ? `${reais(c.valorBRL)} · ${c.valor} SOL` : `${c.valor} SOL`);
+const explorerUrl = (sig) => `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=devnet`;
+
+let refAberta = null; // cobrança exibida no quadro "New charge"
+let refDialogo = null; // cobrança exibida no modal de QR
+
+async function carregarConfig() {
+  try {
+    const cfg = await (await fetch("/api/config")).json();
+    document.getElementById("rede").textContent = `${cfg.rede} · R$ ${cfg.cotacao} = 1 SOL`;
+  } catch (e) { /* mantém "devnet" */ }
+}
 
 async function enviarXml(url, arquivo) {
   const resp = await fetch(url + "?nome=" + encodeURIComponent(arquivo.name), {
@@ -111,8 +125,8 @@ async function enviarXml(url, arquivo) {
     headers: { "Content-Type": "application/octet-stream" },
     body: await arquivo.arrayBuffer(), // bytes exatos, para o hash bater
   });
-  const dados = await resp.json();
-  if (!resp.ok) throw new Error(dados.erro || "Error");
+  const dados = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(dados.erro || "Request failed (" + resp.status + ")");
   return dados;
 }
 
@@ -133,11 +147,12 @@ ligarUpload("dropCobranca", "fileCobranca", async (arquivo) => {
   alvo.innerHTML = "Creating charge…";
   try {
     const c = await enviarXml("/api/cobrancas", arquivo);
+    refAberta = c.reference;
     alvo.innerHTML = `
       <div class="qrbox">
-        <img src="${c.qr}" alt="QR">
+        <img src="${esc(c.qr)}" alt="QR">
         <div>
-          <div><b>Invoice ${numeroNota(c.chave)}</b> · ${esc(c.valor)} SOL</div>
+          <div><b>Invoice ${numeroNota(c.chave)}</b> · ${esc(valorTexto(c))}</div>
           <div class="sub" style="margin-top:6px">Scan with Phantom (devnet) or run <code>npm run pagar</code>.</div>
           <div class="mono">hash ${esc(c.hash)}</div>
         </div>
@@ -157,7 +172,8 @@ ligarUpload("dropVerificar", "fileVerificar", async (arquivo) => {
     let extra = `<div class="mono">file hash ${esc(r.hash)}</div>`;
     if (r.hashOriginal) extra += `<div class="mono">original hash ${esc(r.hashOriginal)}</div>`;
     if (r.memoNaBlockchain) extra += `<div class="mono">on-chain memo ${esc(r.memoNaBlockchain)}</div>`;
-    if (r.explorer) extra += `<div style="margin-top:8px">Paid ${esc(dataHora(r.paga_em))} · <a class="btn" href="${r.explorer}" target="_blank">View transaction ↗</a></div>`;
+    if (r.valor) extra += `<div class="mono">amount ${esc(valorTexto(r))}</div>`;
+    if (r.assinatura) extra += `<div style="margin-top:8px">Paid ${esc(dataHora(r.paga_em))} · <a class="btn" href="${explorerUrl(r.assinatura)}" target="_blank" rel="noopener noreferrer">View transaction ↗</a></div>`;
     alvo.innerHTML = `<div class="result ${r.resultado}"><strong>${icone} ${esc(r.mensagem)}</strong>${extra}</div>`;
   } catch (e) {
     alvo.innerHTML = `<span class="erro">${esc(e.message)}</span>`;
@@ -165,24 +181,65 @@ ligarUpload("dropVerificar", "fileVerificar", async (arquivo) => {
 });
 
 async function mostrarQr(reference, chave) {
-  const r = await (await fetch(`/api/cobrancas/${reference}/qr`)).json();
-  document.getElementById("dlgImg").src = r.qr;
-  document.getElementById("dlgTitulo").textContent = `Invoice ${numeroNota(chave)}`;
-  document.getElementById("dlgQr").showModal();
+  try {
+    const r = await (await fetch(`/api/cobrancas/${encodeURIComponent(reference)}/qr`)).json();
+    if (!r.qr) throw new Error(r.erro || "QR unavailable");
+    refDialogo = reference;
+    document.getElementById("dlgImg").src = r.qr;
+    document.getElementById("dlgTitulo").textContent = `Invoice ${numeroNota(chave)}`;
+    document.getElementById("dlgQr").showModal();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// Troca o quadro do QR pelo resultado quando o pagamento é detectado.
+function mostrarResultado(c) {
+  const alvo = document.getElementById("novaCobranca");
+  if (c.status === "paga") {
+    alvo.innerHTML = `
+      <div class="result autentico">
+        <strong>✅ Payment received · Invoice ${numeroNota(c.chave)}</strong>
+        <div>${esc(valorTexto(c))}</div>
+        <div class="mono">hash recorded on-chain: ${esc(c.hash)}</div>
+        <div style="margin-top:8px"><a class="btn" href="${explorerUrl(c.assinatura)}" target="_blank" rel="noopener noreferrer">View transaction ↗</a></div>
+      </div>`;
+  } else {
+    alvo.innerHTML = `
+      <div class="result alterado">
+        <strong>❌ Payment found but rejected · Invoice ${numeroNota(c.chave)}</strong>
+        <div class="mono">${esc(c.motivo || "invalid payment")}</div>
+      </div>`;
+  }
 }
 
 async function carregar() {
-  const lista = await (await fetch("/api/cobrancas")).json();
+  let lista;
+  try {
+    lista = await (await fetch("/api/cobrancas")).json();
+  } catch (e) {
+    return; // servidor fora do ar: tenta de novo no próximo ciclo
+  }
   const corpo = document.getElementById("lista");
+
+  const aberta = refAberta && lista.find((c) => c.reference === refAberta);
+  if (aberta && aberta.status !== "pendente") { mostrarResultado(aberta); refAberta = null; }
+  const noModal = refDialogo && lista.find((c) => c.reference === refDialogo);
+  if (noModal && noModal.status !== "pendente") {
+    document.getElementById("dlgQr").close();
+    refDialogo = null;
+    mostrarResultado(noModal);
+  }
+
   if (!lista.length) { corpo.innerHTML = `<tr><td colspan="5" class="empty">No charges yet.</td></tr>`; return; }
   corpo.innerHTML = lista.map((c) => {
     let acao = "";
-    if (c.status === "pendente") acao = `<button onclick="mostrarQr('${c.reference}','${c.chave}')">Show QR</button>`;
-    if (c.status === "paga") acao = `<a class="btn" target="_blank" href="https://explorer.solana.com/tx/${c.assinatura}?cluster=devnet">Explorer ↗</a>`;
+    if (c.status === "pendente") acao = `<button onclick="mostrarQr('${esc(c.reference)}','${esc(c.chave)}')">Show QR</button>`;
+    if (c.status === "paga") acao = `<a class="btn" target="_blank" rel="noopener noreferrer" href="${explorerUrl(c.assinatura)}">Explorer ↗</a>`;
     if (c.status === "invalida") acao = `<span class="mono" title="${esc(c.motivo)}">see reason</span>`;
     return `<tr>
       <td><b>${numeroNota(c.chave)}</b><div class="mono hide-sm">${esc(c.chave)}</div></td>
-      <td>${esc(c.valor)} SOL</td>
+      <td>${esc(valorTexto(c))}</td>
       <td><span class="badge ${c.status}">${STATUS[c.status] || c.status}</span></td>
       <td class="hide-sm">${dataHora(c.criada)}</td>
       <td>${acao}</td>
@@ -190,6 +247,7 @@ async function carregar() {
   }).join("");
 }
 
+carregarConfig();
 carregar();
 setInterval(carregar, 3000);
 </script>

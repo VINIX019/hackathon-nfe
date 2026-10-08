@@ -5,7 +5,7 @@ import BigNumber from "bignumber.js";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import { conexao } from "./carteira";
-import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO } from "./config";
+import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO, COTACAO_BRL_POR_SOL, brlParaSol } from "./config";
 
 export const lerLista = (): any[] =>
   fs.existsSync(ARQUIVO_COBRANCAS) ? JSON.parse(fs.readFileSync(ARQUIVO_COBRANCAS, "utf8")) : [];
@@ -32,8 +32,11 @@ export function criarCobranca(xml: Buffer, nomeArquivo: string) {
   const existente = lista.find((x) => x.chave === chave && x.status !== "invalida");
   if (existente) throw new Error(`Já existe cobrança para esta nota (status: ${existente.status}).`);
 
-  const valor = new BigNumber(vNF);
-  if (!valor.isFinite() || valor.lte(0)) throw new Error("Valor inválido: " + vNF);
+  // O <vNF> é em reais; a cobrança é em SOL pela cotação configurada.
+  const valorBRL = new BigNumber(vNF);
+  if (!valorBRL.isFinite() || valorBRL.lte(0)) throw new Error("Valor inválido: " + vNF);
+  const valor = brlParaSol(valorBRL);
+  if (valor.lte(0)) throw new Error("Valor muito pequeno para converter: R$ " + vNF);
 
   const reference = Keypair.generate().publicKey;
   const url = encodeURL({
@@ -48,7 +51,9 @@ export function criarCobranca(xml: Buffer, nomeArquivo: string) {
   const cobranca = {
     reference: reference.toBase58(),
     chave,
-    valor: valor.toString(),
+    valor: valor.toString(), // em SOL
+    valorBRL: valorBRL.toString(),
+    cotacao: COTACAO_BRL_POR_SOL.toString(), // R$ por 1 SOL, no momento da cobrança
     hash,
     arquivo: nomeArquivo,
     url: url.toString(),
@@ -162,6 +167,7 @@ export async function verificarDocumento(xml: Buffer) {
     memoNaBlockchain: memo,
     chave: pelaHash.chave,
     valor: pelaHash.valor,
+    valorBRL: pelaHash.valorBRL,
     paga_em: pelaHash.paga_em,
     assinatura: pelaHash.assinatura,
     explorer: `https://explorer.solana.com/tx/${pelaHash.assinatura}?cluster=devnet`,

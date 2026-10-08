@@ -4,7 +4,7 @@ import BigNumber from "bignumber.js";
 import QRCode from "qrcode";
 import * as fs from "fs";
 import * as crypto from "crypto";
-import { RECEBEDOR, ARQUIVO_COBRANCAS } from "./config";
+import { RECEBEDOR, ARQUIVO_COBRANCAS, COTACAO_BRL_POR_SOL, brlParaSol } from "./config";
 
 // Lê os dados que interessam do XML da NF-e
 function lerNota(texto: string) {
@@ -18,8 +18,9 @@ function lerNota(texto: string) {
 async function main() {
   const [, , xmlPath, valorManual] = process.argv;
   if (!xmlPath) {
-    console.error("Uso: npm run cobranca -- nota.xml [valor]");
-    console.error("     Sem [valor], usa o <vNF> da nota.");
+    console.error("Uso: npm run cobranca -- nota.xml [valorEmSOL]");
+    console.error(`     Sem [valorEmSOL], converte o <vNF> (R$) pela cotação: R$ ${COTACAO_BRL_POR_SOL} = 1 SOL.`);
+    console.error("     Com [valorEmSOL], cobra esse valor em SOL (só para testes na devnet).");
     process.exit(1);
   }
 
@@ -39,8 +40,12 @@ async function main() {
     process.exit(1);
   }
 
-  const valor = new BigNumber(valorManual ?? vNF);
+  // O <vNF> é em reais. A cobrança é em SOL: vNF / cotação (ou o valor manual, para testes).
+  const valorBRL = new BigNumber(vNF);
+  if (!valorBRL.isFinite() || valorBRL.lte(0)) throw new Error("Valor inválido: " + vNF);
+  const valor = valorManual ? new BigNumber(valorManual) : brlParaSol(valorBRL);
   if (!valor.isFinite() || valor.lte(0)) throw new Error("Valor inválido: " + (valorManual ?? vNF));
+  const cotacaoEfetiva = valorBRL.dividedBy(valor).decimalPlaces(2).toString(); // R$ por 1 SOL
 
   const reference = Keypair.generate().publicKey; // id único da cobrança
 
@@ -56,7 +61,9 @@ async function main() {
   lista.push({
     reference: reference.toBase58(),
     chave,
-    valor: valor.toString(),
+    valor: valor.toString(), // em SOL
+    valorBRL: valorBRL.toString(),
+    cotacao: cotacaoEfetiva,
     hash,
     arquivo: xmlPath,
     url: url.toString(),
@@ -67,7 +74,7 @@ async function main() {
 
   await QRCode.toFile("qr.png", url.toString(), { width: 400 });
   console.log("Nota:     ", chave);
-  console.log("Valor:    ", valor.toString(), "SOL");
+  console.log("Valor:    ", "R$", valorBRL.toString(), "=", valor.toString(), "SOL", `(R$ ${cotacaoEfetiva} por SOL)`);
   console.log("Reference:", reference.toBase58());
   console.log("Hash:     ", hash);
   console.log("QR salvo em qr.png");
