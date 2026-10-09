@@ -4,6 +4,8 @@ import express from "express";
 import QRCode from "qrcode";
 import * as path from "path";
 import { lerLista, criarCobranca, rodadaMonitor, verificarDocumento } from "./nucleo";
+import { cotacaoBRLporUSDC } from "./cotacao";
+import { MOEDA } from "./config";
 
 const app = express();
 const PORTA = Number(process.env.PORT) || 3000;
@@ -13,6 +15,12 @@ const corpoXml = express.raw({ type: "*/*", limit: "5mb" });
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// Rede, moeda e cotação atual (mostradas no cabeçalho do painel)
+app.get("/api/config", async (_req, res) => {
+  const cot = await cotacaoBRLporUSDC();
+  res.json({ rede: "devnet", moeda: MOEDA, cotacao: cot.valor.toString(), fonte: cot.fonte });
+});
+
 app.get("/api/cobrancas", (_req, res) => {
   res.json(lerLista().slice().reverse()); // mais recentes primeiro
 });
@@ -20,7 +28,7 @@ app.get("/api/cobrancas", (_req, res) => {
 app.post("/api/cobrancas", corpoXml, async (req, res) => {
   try {
     const nome = String(req.query.nome || "nota.xml");
-    const c = criarCobranca(req.body as Buffer, nome);
+    const c = await criarCobranca(req.body as Buffer, nome);
     const qr = await QRCode.toDataURL(c.url, { width: 360, margin: 1 });
     res.json({ ...c, qr });
   } catch (e: any) {

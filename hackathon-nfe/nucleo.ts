@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as crypto from "crypto";
 import { conexao } from "./carteira";
 import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO, MOEDA, USDC_MINT, USDC_DECIMAIS } from "./config";
+import { cotacaoBRLporUSDC } from "./cotacao";
 
 // Cobranças antigas (sem campo "moeda") eram em SOL
 export const moedaDe = (c: any): "USDC" | "SOL" => (c.moeda === "USDC" ? "USDC" : "SOL");
@@ -28,19 +29,34 @@ export function lerNota(texto: string) {
   return { chave, vNF };
 }
 
-// Mesma regra do cobranca.ts, mas recebendo o conteúdo do XML em vez do caminho
-export function criarCobranca(xml: Buffer, nomeArquivo: string, valorManual?: string) {
+// O <vNF> da NF-e é em reais. Em USDC, o valor cobrado é vNF / cotação (travada na criação).
+// valorManual (opcional) é na moeda da cobrança e serve só para testes.
+export async function criarCobranca(xml: Buffer, nomeArquivo: string, valorManual?: string) {
   const { chave, vNF } = lerNota(xml.toString("utf8"));
   const hash = hashDe(xml);
-  const lista = lerLista();
 
-  const existente = lista.find((x) => x.chave === chave && x.status !== "invalida");
-  if (existente) throw new Error(`Já existe cobrança para esta nota (status: ${existente.status}).`);
+  const valorBRL = new BigNumber(vNF);
+  if (!valorBRL.isFinite() || valorBRL.lte(0)) throw new Error("Valor inválido: " + vNF);
 
-  const valor = new BigNumber(valorManual ?? vNF);
+  // A cotação é buscada ANTES de ler a lista: se lêssemos antes, o monitor poderia gravar
+  // uma baixa durante a espera da rede e nós a sobrescreveríamos.
+  let valor: BigNumber;
+  let cotacao: { valor: BigNumber; fonte: string } | null = null;
+  if (valorManual) {
+    valor = new BigNumber(valorManual);
+  } else if (MOEDA === "USDC") {
+    cotacao = await cotacaoBRLporUSDC();
+    valor = valorBRL.dividedBy(cotacao.valor).decimalPlaces(USDC_DECIMAIS, BigNumber.ROUND_UP);
+  } else {
+    valor = valorBRL; // modo SOL antigo: usa o <vNF> direto
+  }
   if (!valor.isFinite() || valor.lte(0)) throw new Error("Valor inválido: " + (valorManual ?? vNF));
   const casas = MOEDA === "USDC" ? USDC_DECIMAIS : 9;
   if ((valor.decimalPlaces() ?? 0) > casas) throw new Error(`Valor com mais de ${casas} casas decimais: ${valor}`);
+
+  const lista = lerLista();
+  const existente = lista.find((x) => x.chave === chave && x.status !== "invalida");
+  if (existente) throw new Error(`Já existe cobrança para esta nota (status: ${existente.status}).`);
 
   const reference = Keypair.generate().publicKey;
   const url = encodeURL({
@@ -58,6 +74,8 @@ export function criarCobranca(xml: Buffer, nomeArquivo: string, valorManual?: st
     chave,
     valor: valor.toString(),
     moeda: MOEDA,
+    valorBRL: valorBRL.toString(),
+    ...(cotacao ? { cotacao: cotacao.valor.toString(), fonteCotacao: cotacao.fonte } : {}),
     hash,
     arquivo: nomeArquivo,
     url: url.toString(),
@@ -173,6 +191,7 @@ export async function verificarDocumento(xml: Buffer) {
     memoNaBlockchain: memo,
     chave: pelaHash.chave,
     valor: pelaHash.valor,
+    valorBRL: pelaHash.valorBRL,
     moeda: moedaDe(pelaHash),
     paga_em: pelaHash.paga_em,
     assinatura: pelaHash.assinatura,

@@ -31,17 +31,25 @@ async function main() {
     try { saldoUsdc = (await getAccount(conexao, origem)).amount; } catch {}
     if (saldoUsdc < unidades) {
       throw new Error(`Saldo USDC insuficiente na carteira pagadora (${Number(saldoUsdc) / 10 ** USDC_DECIMAIS} USDC, ` +
-        `precisa de ${c.valor}). Envie USDC da Phantom para ${pagador.publicKey.toBase58()}`);
+        `precisa de ${c.valor}). Envie USDC de teste (faucet.circle.com) para ${pagador.publicKey.toBase58()}`);
     }
-    if (solSaldo < 10_000_000) throw new Error("A carteira pagadora precisa de um pouco de SOL (0.01) para as taxas.");
+    if (solSaldo < 10_000_000) {
+      throw new Error(`A carteira pagadora precisa de um pouco de SOL (0.01) para as taxas. ` +
+        `Saldo atual: ${solSaldo / LAMPORTS_PER_SOL} SOL em ${pagador.publicKey.toBase58()}`);
+    }
 
-    // Garante que o recebedor tenha a conta de USDC (não faz nada se já existir).
-    // Fica antes do memo: o Solana Pay só exige memo + transferência no final.
-    tx.add(createAssociatedTokenAccountIdempotentInstruction(pagador.publicKey, destino, RECEBEDOR, USDC_MINT));
+    // Só cria a conta de USDC do recebedor se ela ainda não existir. Quando já existe,
+    // a transação fica [memo, transferência], igual à de SOL que já foi validada.
+    const contaDestino = await conexao.getAccountInfo(destino);
+    if (!contaDestino) {
+      tx.add(createAssociatedTokenAccountIdempotentInstruction(pagador.publicKey, destino, RECEBEDOR, USDC_MINT));
+    }
     transfer = createTransferCheckedInstruction(origem, USDC_MINT, destino, pagador.publicKey, unidades, USDC_DECIMAIS);
   } else {
     const lamports = new BigNumber(c.valor).times(LAMPORTS_PER_SOL).integerValue().toNumber();
-    if (solSaldo < lamports + 10_000) throw new Error("Saldo SOL insuficiente na carteira pagadora.");
+    if (solSaldo < lamports + 10_000) {
+      throw new Error(`Saldo SOL insuficiente na carteira pagadora (${solSaldo / LAMPORTS_PER_SOL} SOL em ${pagador.publicKey.toBase58()}).`);
+    }
     transfer = SystemProgram.transfer({ fromPubkey: pagador.publicKey, toPubkey: RECEBEDOR, lamports });
   }
 

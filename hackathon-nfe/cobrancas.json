@@ -58,5 +58,21 @@
     "criada": "2026-10-07T20:20:28.064Z",
     "assinatura": "hVVdmXKeGZT6hyNPGQKCewwmc9mg2q41ykx5DfQ6qcqZQmeVDbU4CaB8ZxbzhMVzde3f7hWp73XLfsj9BZDuudq",
     "paga_em": "2026-10-07T20:24:21.831Z"
+  },
+  {
+    "reference": "2amvvMsrg6Qg9wo9NKs8oL9DH8ZN2tnMFvje3PuqmFtX",
+    "chave": "35261012345678000199550010000001301000001292",
+    "valor": "0.15943",
+    "moeda": "USDC",
+    "valorBRL": "0.8",
+    "cotacao": "5.0179",
+    "fonteCotacao": "AwesomeAPI USD/BRL",
+    "hash": "45f760180f155a3f8e4b04025676a5bf1aec5378e66ba355f514cbc3438a4d6b",
+    "arquivo": "nota8.xml",
+    "url": "solana:6en4Aeq8wVwJbTpvhhNBPdLzSXd2cQHd2axyWerc7abb?amount=0.15943&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=2amvvMsrg6Qg9wo9NKs8oL9DH8ZN2tnMFvje3PuqmFtX&label=NF-e+000000130&message=Pagamento+de+nota+fiscal&memo=45f760180f155a3f8e4b04025676a5bf1aec5378e66ba355f514cbc3438a4d6b",
+    "status": "paga",
+    "criada": "2026-10-09T05:38:27.932Z",
+    "assinatura": "5hocZCBS2G1EodqdbxrXrTKFdLVPhQt6BMooHZX4XcXrDuLZPuPBoFPBVt4xMrmVJV27YT6j265SqwbFCQGbQ4rk",
+    "paga_em": "2026-10-09T05:38:46.191Z"
   }
 ]

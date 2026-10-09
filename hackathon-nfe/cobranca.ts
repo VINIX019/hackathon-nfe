@@ -7,14 +7,16 @@ async function main() {
   const [, , xmlPath, valorManual] = process.argv;
   if (!xmlPath) {
     console.error("Uso: npm run cobranca -- nota.xml [valor]");
-    console.error("     Sem [valor], usa o <vNF> da nota.");
+    console.error("     Sem [valor], converte o <vNF> (R$) para USDC pela cotação do momento.");
+    console.error("     Com [valor], cobra esse valor direto na moeda da cobrança (só para testes).");
     process.exit(1);
   }
 
-  const c = criarCobranca(fs.readFileSync(xmlPath), xmlPath, valorManual);
+  const c = await criarCobranca(fs.readFileSync(xmlPath), xmlPath, valorManual);
   await QRCode.toFile("qr.png", c.url, { width: 400 });
   console.log("Nota:     ", c.chave);
-  console.log("Valor:    ", c.valor, moedaDe(c));
+  console.log("Valor:    ", `R$ ${c.valorBRL} =`, c.valor, moedaDe(c));
+  if ("cotacao" in c) console.log("Cotação:  ", `R$ ${c.cotacao} por USDC (${c.fonteCotacao})`);
   console.log("Reference:", c.reference);
   console.log("Hash:     ", c.hash);
   console.log("QR salvo em qr.png");
