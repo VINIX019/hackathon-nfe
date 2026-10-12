@@ -1,5 +1,5 @@
 node_modules/
 carteira.json
-cobrancas.json
+cobrancas*.json
 qr.png
 .env
