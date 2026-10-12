@@ -5,7 +5,7 @@ import BigNumber from "bignumber.js";
 export const COTACAO_BRL_POR_USDC = new BigNumber(globalThis.process?.env?.COTACAO_BRL_POR_USDC ?? "5.50");
 
 export const RECEBEDOR = new PublicKey("6en4Aeq8wVwJbTpvhhNBPdLzSXd2cQHd2axyWerc7abb");
-export const ARQUIVO_COBRANCAS = "cobrancas.json";
+export const ARQUIVO_COBRANCAS = process.env.COBRANCAS_FILE ?? "cobrancas.json";
 // Moeda das novas cobranças: "USDC" (padrão) ou "SOL".
 // Cobranças antigas continuam sendo validadas na moeda em que foram criadas.
 export const MOEDA: "USDC" | "SOL" = "USDC";

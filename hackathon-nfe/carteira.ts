@@ -3,7 +3,7 @@ import * as fs from "fs";
 
 const ARQUIVO = "carteira.json";
 
-export const conexao = new Connection(clusterApiUrl("devnet"), "confirmed");
+export const conexao = new Connection(process.env.SOLANA_RPC_URL ?? clusterApiUrl("devnet"), "confirmed");
 
 export function carregarOuCriar(): Keypair {
   if (fs.existsSync(ARQUIVO)) {
