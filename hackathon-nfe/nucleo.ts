@@ -7,6 +7,7 @@ import * as crypto from "crypto";
 import { conexao } from "./carteira";
 import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO, MOEDA, USDC_MINT, USDC_DECIMAIS } from "./config";
 import { cotacaoBRLporUSDC } from "./cotacao";
+import * as path from "path";
 
 // Cobranças antigas (sem campo "moeda") eram em SOL
 export const moedaDe = (c: any): "USDC" | "SOL" => (c.moeda === "USDC" ? "USDC" : "SOL");
@@ -16,8 +17,10 @@ export const splTokenDe = (c: any) => (moedaDe(c) === "USDC" ? USDC_MINT : undef
 export const lerLista = (): any[] =>
   fs.existsSync(ARQUIVO_COBRANCAS) ? JSON.parse(fs.readFileSync(ARQUIVO_COBRANCAS, "utf8")) : [];
 
-const gravarLista = (lista: any[]) =>
+const gravarLista = (lista: any[]) => {
+  fs.mkdirSync(path.dirname(path.resolve(ARQUIVO_COBRANCAS)), { recursive: true });
   fs.writeFileSync(ARQUIVO_COBRANCAS, JSON.stringify(lista, null, 2));
+};
 
 export const hashDe = (xml: Buffer) => crypto.createHash("sha256").update(xml).digest("hex");
 
@@ -151,7 +154,7 @@ export async function verificarDocumento(xml: Buffer) {
   let chave: string | null = null;
   try {
     chave = lerNota(xml.toString("utf8")).chave;
-  } catch {}
+  } catch { }
 
   const lista = lerLista();
   const pelaHash = lista.find((x) => x.hash === hash);
