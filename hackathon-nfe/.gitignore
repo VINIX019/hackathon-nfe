@@ -1,3 +1,5 @@
+node_modules/
 carteira.json
 cobrancas.json
-node_modules
+qr.png
+.env
