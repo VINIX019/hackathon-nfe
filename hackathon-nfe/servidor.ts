@@ -1,5 +1,4 @@
 // Painel web: API + monitor de pagamentos rodando no mesmo processo.
-// Rodar com: npm run painel   →   abrir http://localhost:3000
 import express from "express";
 import QRCode from "qrcode";
 import * as path from "path";
@@ -10,12 +9,12 @@ import { MOEDA } from "./config";
 const app = express();
 const PORTA = Number(process.env.PORT) || 3000;
 
-// O XML chega como bytes brutos: o hash precisa ser calculado sobre o arquivo exato
+
 const corpoXml = express.raw({ type: "*/*", limit: "5mb" });
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// Rede, moeda e cotação atual (mostradas no cabeçalho do painel)
+
 app.get("/api/config", async (_req, res) => {
   const cot = await cotacaoBRLporUSDC();
   res.json({ rede: "devnet", moeda: MOEDA, cotacao: cot.valor.toString(), fonte: cot.fonte });
@@ -50,7 +49,6 @@ app.post("/api/verificar", corpoXml, async (req, res) => {
   }
 });
 
-// Monitor embutido: uma rodada a cada 3 s, sem sobrepor rodadas
 async function loopMonitor() {
   try {
     await rodadaMonitor();
