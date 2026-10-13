@@ -12,7 +12,7 @@ async function main() {
   let usdc = 0n;
   try {
     usdc = (await getAccount(conexao, await getAssociatedTokenAddress(USDC_MINT, carteira.publicKey))).amount;
-  } catch {} // conta de USDC ainda não existe = saldo zero
+  } catch {}   
   console.log("Saldo:   ", Number(usdc) / 10 ** USDC_DECIMAIS, "USDC");
 }
 main();
