@@ -8,7 +8,7 @@ Built for the Colosseum hackathon (Superteam Brasil track) by a CS student and h
 
 > **Status: devnet prototype.** Real Solana transactions, synthetic invoices. See [Limitations](#limitations-read-this-first).
 
-Live demo: https://hackathon-nfe-production.up.railway.app/ · Video: `<VIDEO_URL>`
+Live demo: https://hackathon-nfe-production.up.railway.app/ · Video: https://youtu.be/xjPg-twtDh4
 
 ---
 
