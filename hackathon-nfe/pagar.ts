@@ -1,4 +1,4 @@
-// Simula o cliente pagando a última cobrança pendente (SOL ou USDC, conforme a cobrança).
+
 import { SystemProgram, Transaction, TransactionInstruction, PublicKey,
   sendAndConfirmTransaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount,
@@ -22,7 +22,7 @@ async function main() {
   let transfer: TransactionInstruction;
 
   if (moeda === "USDC") {
-    // Em USDC a transferência é entre "contas de token" (ATA) de cada carteira
+
     const unidades = BigInt(new BigNumber(c.valor).times(10 ** USDC_DECIMAIS).integerValue().toFixed());
     const origem = await getAssociatedTokenAddress(USDC_MINT, pagador.publicKey);
     const destino = await getAssociatedTokenAddress(USDC_MINT, RECEBEDOR);
@@ -38,8 +38,6 @@ async function main() {
         `Saldo atual: ${solSaldo / LAMPORTS_PER_SOL} SOL em ${pagador.publicKey.toBase58()}`);
     }
 
-    // Só cria a conta de USDC do recebedor se ela ainda não existir. Quando já existe,
-    // a transação fica [memo, transferência], igual à de SOL que já foi validada.
     const contaDestino = await conexao.getAccountInfo(destino);
     if (!contaDestino) {
       tx.add(createAssociatedTokenAccountIdempotentInstruction(pagador.publicKey, destino, RECEBEDOR, USDC_MINT));
@@ -53,12 +51,11 @@ async function main() {
     transfer = SystemProgram.transfer({ fromPubkey: pagador.publicKey, toPubkey: RECEBEDOR, lamports });
   }
 
-  // A reference vai como conta extra da transferência: é assim que o monitor acha o pagamento
   transfer.keys.push({ pubkey: reference, isSigner: false, isWritable: false });
 
   const memo = new TransactionInstruction({ keys: [], programId: MEMO_PROGRAM, data: Buffer.from(c.hash) });
 
-  // Ordem importa: o validateTransfer do Solana Pay espera memo e, por último, a transferência.
+
   tx.add(memo, transfer);
   const sig = await sendAndConfirmTransaction(conexao, tx, [pagador]);
   console.log(`Pago ${c.valor} ${moeda}:`, `https://explorer.solana.com/tx/${sig}?cluster=devnet`);
