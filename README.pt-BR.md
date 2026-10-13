@@ -8,7 +8,7 @@ Feito para o hackathon Colosseum (trilha Superteam Brasil) por um estudante de C
 
 > **Status: protótipo em devnet.** Transações reais na Solana, notas sintéticas. Veja as [Limitações](#limitações-leia-primeiro).
 
-Demo online: https://hackathon-nfe-production.up.railway.app/ · Vídeo: `<VIDEO_URL>`
+Demo online: https://hackathon-nfe-production.up.railway.app/ · Vídeo: https://youtu.be/xjPg-twtDh4
 
 ---
 
