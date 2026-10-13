@@ -9,9 +9,9 @@ import { RECEBEDOR, ARQUIVO_COBRANCAS, VALIDAR_MEMO, MOEDA, USDC_MINT, USDC_DECI
 import { cotacaoBRLporUSDC } from "./cotacao";
 import * as path from "path";
 
-// Cobranças antigas (sem campo "moeda") eram em SOL
+
 export const moedaDe = (c: any): "USDC" | "SOL" => (c.moeda === "USDC" ? "USDC" : "SOL");
-// Para o Solana Pay: USDC é um token SPL (splToken); SOL é nativo (sem splToken)
+
 export const splTokenDe = (c: any) => (moedaDe(c) === "USDC" ? USDC_MINT : undefined);
 
 export const lerLista = (): any[] =>
@@ -32,8 +32,8 @@ export function lerNota(texto: string) {
   return { chave, vNF };
 }
 
-// O <vNF> da NF-e é em reais. Em USDC, o valor cobrado é vNF / cotação (travada na criação).
-// valorManual (opcional) é na moeda da cobrança e serve só para testes.
+
+
 export async function criarCobranca(xml: Buffer, nomeArquivo: string, valorManual?: string) {
   const { chave, vNF } = lerNota(xml.toString("utf8"));
   const hash = hashDe(xml);
@@ -41,8 +41,7 @@ export async function criarCobranca(xml: Buffer, nomeArquivo: string, valorManua
   const valorBRL = new BigNumber(vNF);
   if (!valorBRL.isFinite() || valorBRL.lte(0)) throw new Error("Valor inválido: " + vNF);
 
-  // A cotação é buscada ANTES de ler a lista: se lêssemos antes, o monitor poderia gravar
-  // uma baixa durante a espera da rede e nós a sobrescreveríamos.
+
   let valor: BigNumber;
   let cotacao: { valor: BigNumber; fonte: string } | null = null;
   if (valorManual) {
@@ -51,7 +50,7 @@ export async function criarCobranca(xml: Buffer, nomeArquivo: string, valorManua
     cotacao = await cotacaoBRLporUSDC();
     valor = valorBRL.dividedBy(cotacao.valor).decimalPlaces(USDC_DECIMAIS, BigNumber.ROUND_UP);
   } else {
-    valor = valorBRL; // modo SOL antigo: usa o <vNF> direto
+    valor = valorBRL; 
   }
   if (!valor.isFinite() || valor.lte(0)) throw new Error("Valor inválido: " + (valorManual ?? vNF));
   const casas = MOEDA === "USDC" ? USDC_DECIMAIS : 9;
@@ -90,7 +89,7 @@ export async function criarCobranca(xml: Buffer, nomeArquivo: string, valorManua
   return cobranca;
 }
 
-// Procura o pagamento de uma cobrança. Retorna true se o status mudou.
+
 async function verificarPagamento(c: any): Promise<boolean> {
   const reference = new PublicKey(c.reference);
   try {
@@ -119,7 +118,7 @@ async function verificarPagamento(c: any): Promise<boolean> {
   }
 }
 
-// Uma rodada do monitor: verifica todas as pendentes e grava só o que mudou
+
 export async function rodadaMonitor() {
   const alteradas: any[] = [];
   for (const c of lerLista().filter((x) => x.status === "pendente")) {
@@ -135,7 +134,7 @@ export async function rodadaMonitor() {
   }
 }
 
-// Lê o memo gravado numa transação da blockchain
+
 async function memoDaTransacao(assinatura: string): Promise<string | null> {
   const tx = await conexao.getParsedTransaction(assinatura, {
     commitment: "confirmed",
@@ -148,7 +147,7 @@ async function memoDaTransacao(assinatura: string): Promise<string | null> {
   return null;
 }
 
-// Tela "verificar documento": o XML enviado é o mesmo que foi pago e registrado na blockchain?
+
 export async function verificarDocumento(xml: Buffer) {
   const hash = hashDe(xml);
   let chave: string | null = null;
@@ -182,7 +181,7 @@ export async function verificarDocumento(xml: Buffer) {
     };
   }
 
-  // Confirma direto na blockchain, sem confiar só no arquivo local
+
   const memo = await memoDaTransacao(pelaHash.assinatura);
   const confere = memo === hash;
   return {
